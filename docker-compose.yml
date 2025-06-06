@@ -242,6 +242,8 @@ services:
      - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
     volumes:
      - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+     - mongos_data_db:/data
+     - mongos_data_configdb:/data/configdb
     command: mongos --configdb config_rs/host.docker.internal:30001,host.docker.internal:30002,host.docker.internal:30003 --port 27017 --bind_ip_all --keyFile /data/configdb/keyfile
     healthcheck:
       test: 'mongosh --quiet --port 27017 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
