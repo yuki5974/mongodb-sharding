@@ -228,6 +228,36 @@ services:
     volumes:
       - ./init2.js:/init.js
 
+  mongos:
+    container_name: mongos
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: always
+    environment:
+     - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+     - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    command: mongos --configdb config_rs/host.docker.internal:30001,host.docker.internal:30002,host.docker.internal:30003 --port 27017
+    healthcheck:
+      test: 'mongosh --quiet --port 27017 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+
+  mongos_init:
+    image: mongo:latest
+    restart: no
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    depends_on:
+      mongos:
+        condition: service_healthy
+    command: >
+      mongosh -u ${MONGODB_ROOT_USERNAME} -p ${MONGODB_ROOT_PASSWORD} --host host.docker.internal --port 27017 /init.js
+    volumes:
+      - ./initmongos.js:/init.js
+
+
 volumes:
   shard1_primary_data_db:
   shard1_primary_data_configdb:
