@@ -281,6 +281,8 @@ volumes:
   config1_replica_1_data_configdb:
   config1_replica_2_data_db:
   config1_replica_2_data_configdb:
+  mongos_data_db:
+  mongos_data_configdb:
 
 networks:
   default:
