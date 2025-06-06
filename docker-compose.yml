@@ -4,9 +4,9 @@ services:
   shard1_primary:
     image: mongo:latest
     container_name: shard1_primary
-    command: mongod --port 27017 --replSet rs0 --bind_ip_all --keyFile /data/configdb/keyfile
+    command: mongod --port 10001 --replSet rs1 --bind_ip_all --keyFile /data/configdb/keyfile
     ports:
-     - "27017:27017"
+     - "10001:10001"
     extra_hosts:
      - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -19,15 +19,15 @@ services:
      - shard1_primary_data_db:/data
      - shard1_primary_data_configdb:/data/configdb
     healthcheck:
-      test: 'mongosh --quiet --port 27017 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      test: 'mongosh --quiet --port 10001 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
       interval: 5s
 
   shard1_replica_1:
     image: mongo:latest
     container_name: shard1_replica_1
-    command: mongod --port 27018 --replSet rs0 --bind_ip_all --keyFile /data/configdb/keyfile
+    command: mongod --port 10002 --replSet rs1 --bind_ip_all --keyFile /data/configdb/keyfile
     ports:
-     - "27018:27018"
+     - "10002:10002"
     extra_hosts:
      - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -38,14 +38,14 @@ services:
      - shard1_replica_1_data_db:/data
      - shard1_replica_1_data_configdb:/data/configdb
     healthcheck:
-      test: 'mongosh --quiet --port 27018 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      test: 'mongosh --quiet --port 10002 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
 
   shard1_replica_2:
     image: mongo:latest
     container_name: shard1_replica_2
-    command: mongod --port 27019 --replSet rs0 --bind_ip_all --keyFile /data/configdb/keyfile
+    command: mongod --port 10003 --replSet rs1 --bind_ip_all --keyFile /data/configdb/keyfile
     ports:
-     - "27019:27019"
+     - "10003:10003"
     extra_hosts:
      - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -56,26 +56,100 @@ services:
      - shard1_replica_2_data_db:/data
      - shard1_replica_2_data_configdb:/data/configdb
     healthcheck:
-      test: 'mongosh --quiet --port 27019 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      test: 'mongosh --quiet --port 10003 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
 
-  init:
+  init1:
     image: mongo:latest
     restart: no
     extra_hosts:
      - "host.docker.internal:host-gateway"
     depends_on:
-      mongodb:
+      shard1_primary:
         condition: service_healthy
-      replica_1:
+      shard1_replica_1:
         condition: service_healthy
-      replica_2:
+      shard1_replica_2:
         condition: service_healthy
     command: >
-      mongosh -u root -p root --host host.docker.internal --port 27017 /init.js
+      mongosh -u ${MONGODB_ROOT_USERNAME} -p ${MONGODB_ROOT_PASSWORD} --host host.docker.internal --port 10001 /init.js
 #    command: >
-#      mongosh -u root -p root --host host.docker.internal --port 27017 --eval 'rs.initiate({  _id: "rs0",  members: [    { _id: 0, host: "host.docker.internal:27017" },    { _id: 1, host: "host.docker.internal:27018" },    { _id: 2, host: "host.docker.internal:27019" },  ],});'
+#      mongosh -u root -p root --host host.docker.internal --port 10001 --eval 'rs.initiate({  _id: "rs0",  members: [    { _id: 0, host: "host.docker.internal:10001" },    { _id: 1, host: "host.docker.internal:10002" },    { _id: 2, host: "host.docker.internal:10003" },  ],});'
     volumes:
-      - ./init.js:/init.js
+      - ./init1.js:/init.js
+
+  shard2_primary:
+    image: mongo:latest
+    container_name: shard2_primary
+    command: mongod --port 20001 --replSet rs2 --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+     - "20001:20001"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+     - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    volumes:
+     - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+     - shard2_primary_data_db:/data
+     - shard2_primary_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 20001 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      interval: 5s
+
+  shard2_replica_1:
+    image: mongo:latest
+    container_name: shard2_replica_1
+    command: mongod --port 20002 --replSet rs2 --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+     - "20002:20002"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    volumes:
+     - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+     - shard2_replica_1_data_db:/data
+     - shard2_replica_1_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 20002 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+
+  shard2_replica_2:
+    image: mongo:latest
+    container_name: shard2_replica_2
+    command: mongod --port 20003 --replSet rs2 --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+     - "20003:20003"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    volumes:
+     - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+     - shard2_replica_2_data_db:/data
+     - shard2_replica_2_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 20003 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+
+  init2:
+    image: mongo:latest
+    restart: no
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    depends_on:
+      shard2_primary:
+        condition: service_healthy
+      shard2_replica_1:
+        condition: service_healthy
+      shard2_replica_2:
+        condition: service_healthy
+    command: >
+      mongosh -u ${MONGODB_ROOT_USERNAME} -p ${MONGODB_ROOT_PASSWORD} --host host.docker.internal --port 20001 /init.js
+    volumes:
+      - ./init2.js:/init.js
 
 volumes:
   shard1_primary_data_db:
@@ -84,6 +158,12 @@ volumes:
   shard1_replica_1_data_configdb:
   shard1_replica_2_data_db:
   shard1_replica_2_data_configdb:
+  shard2_primary_data_db:
+  shard2_primary_data_configdb:
+  shard2_replica_1_data_db:
+  shard2_replica_1_data_configdb:
+  shard2_replica_2_data_db:
+  shard2_replica_2_data_configdb:
 
 networks:
   default:
