@@ -1,6 +1,83 @@
 name: mongodb_replica_set
 
 services:
+  config1_primary:
+    image: mongo:latest
+    container_name: config1_primary
+    command: mongod --configsvr --port 30001 --replSet config_rs --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+      - "30001:30001"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+     - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+
+    volumes:
+      - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+      - config1_primary_data_db:/data
+      - config1_primary_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 30001 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      interval: 5s
+
+  config1_replica_1:
+    image: mongo:latest
+    container_name: config1_replica_1
+    command: mongod --configsvr --port 30002 --replSet config_rs --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+      - "30002:30002"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    volumes:
+      - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+      - config1_replica_1_data_db:/data
+      - config1_replica_1_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 30002 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      interval: 5s
+
+  config1_replica_2:
+    image: mongo:latest
+    container_name: config1_replica_2
+    command: mongod --configsvr --port 30003 --replSet config_rs --bind_ip_all --keyFile /data/configdb/keyfile
+    ports:
+      - "30003:30003"
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+     - MONGO_REPLICA_SET_KEY=${MONGO_REPLICA_SET_KEY}
+    volumes:
+      - ./keyfile.sh:/docker-entrypoint-initdb.d/keyfile.sh
+      - config1_replica_2_data_db:/data
+      - config1_replica_2_data_configdb:/data/configdb
+    healthcheck:
+      test: 'mongosh --quiet --port 30003 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
+      interval: 5s
+
+  config1_init:
+    image: mongo:latest
+    restart: no
+    extra_hosts:
+     - "host.docker.internal:host-gateway"
+    depends_on:
+      config1_primary:
+        condition: service_healthy
+      config1_replica_1:
+        condition: service_healthy
+      config1_replica_2:
+        condition: service_healthy
+    command: >
+      mongosh -u ${MONGODB_ROOT_USERNAME} -p ${MONGODB_ROOT_PASSWORD} --host host.docker.internal --port 30001 /init.js
+    volumes:
+      - ./initconf.js:/init.js
+
   shard1_primary:
     image: mongo:latest
     container_name: shard1_primary
@@ -58,7 +135,7 @@ services:
     healthcheck:
       test: 'mongosh --quiet --port 10003 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
 
-  init1:
+  shard1_init:
     image: mongo:latest
     restart: no
     extra_hosts:
@@ -134,7 +211,7 @@ services:
     healthcheck:
       test: 'mongosh --quiet --port 20003 --eval "db.runCommand({ ping: 1 }).ok" | grep 1'
 
-  init2:
+  shard2_init:
     image: mongo:latest
     restart: no
     extra_hosts:
@@ -164,6 +241,12 @@ volumes:
   shard2_replica_1_data_configdb:
   shard2_replica_2_data_db:
   shard2_replica_2_data_configdb:
+  config1_primary_data_db:
+  config1_primary_data_configdb:
+  config1_replica_1_data_db:
+  config1_replica_1_data_configdb:
+  config1_replica_2_data_db:
+  config1_replica_2_data_configdb:
 
 networks:
   default:
